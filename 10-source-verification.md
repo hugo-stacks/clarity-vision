@@ -276,7 +276,11 @@ The first three are on chain, so they are to be settled before launch.
 2. **`contract-hash?`** ([spec/03-primitives.md](spec/03-primitives.md) 3.5).
    It hashes the whole module, which now differs for every contract. For a
    contract to recognise a known template on chain, it has to hash the module
-   without the provenance section, or another primitive has to.
+   without the provenance section, or another primitive has to. That value
+   depends on the compiler release, so a template has one hash per release. It
+   cannot be the recorded source hash instead: the chain does not check that a
+   module was built from the source it names, so a hand-written module could
+   name an audited source and pass for it on chain.
 3. **Per-definition hashes** ([spec/03-primitives.md](spec/03-primitives.md)
    open question 3). If only tools need them, they are computed from verified
    source at any time. If a contract must read another contract's on chain, they
