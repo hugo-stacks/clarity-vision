@@ -76,6 +76,7 @@ size. It records:
 | `format`           | the version of this layout, `1`                                                                                      |
 | `language-version` | the number in the source's `clarity-version` declaration                                                             |
 | `compiler`         | the compiler's name and its exact release                                                                            |
+| `contract`         | the principal of the contract the module is built for, deployer and name                                             |
 | `source-hash`      | `sha512/256` of the source text                                                                                      |
 | `callees`          | for each contract whose sections the build read: its principal and the hashes of its `abi.interface` and `abi.types` |
 
@@ -86,6 +87,10 @@ size. It records:
   whitespace included. The grammar rejects carriage returns and non-ASCII
   characters ([spec/05-grammar.md](spec/05-grammar.md)), so one text has one
   byte string on every platform.
+- **`contract` is the principal the module is deployed at.** A module is built
+  for one contract, so the same source deployed at two addresses gives two
+  modules. The chain does not check the field. A module deployed anywhere else
+  cannot be verified.
 - **The section has one encoding for given build inputs**, so a rebuild
   reproduces it with the rest of the module. The byte layout is fixed when the
   compiler implements it.
@@ -94,11 +99,13 @@ It records nothing else:
 
 - **No compiler options.** There are none that change the output.
 - **No URL, repository, or commit.** A location is not a commitment.
-- **No deployer.** It is already on chain, in the contract's principal.
-  Recording it would give the same source a different `contract-hash?` for each
-  account that deploys it.
 - **No author, license, or audit link.** The rebuild cannot check them. They can
   be added in the registry later (section 9).
+
+Because the module names its contract, `contract-hash?`, which hashes the whole
+module, is different for every contract. Recognising a known template on chain
+is a separate feature from source verification, and it needs a hash that leaves
+the provenance section out (section 11).
 
 A provenance section proves nothing by itself: anyone can write a module by hand
 and name a well-known source in it. Only the rebuild ties the two together, so
@@ -110,16 +117,17 @@ no tool shows a source on the strength of a matching hash alone.
 is that contract's:
 
 1. Read the provenance section of the module on chain.
-2. Check that the hash of the source is the one recorded.
-3. Run the named compiler release on the source, the contract's deployer (taken
-   from its principal), and the callees' sections (read from the chain and
-   checked against the recorded hashes).
+2. Check that it names this contract, and that the hash of the source is the
+   one recorded.
+3. Run the named compiler release on the source, the contract's principal, and
+   the callees' sections (read from the chain and checked against the recorded
+   hashes).
 4. Compare the output with the module.
 
 The contract is **verified** if the two are equal byte for byte. Otherwise the
 answer is a failure with its reason. There is no partial result. Before a
-deploy, the same check runs on a module file and the principal that will deploy
-it.
+deploy, the same check runs on a module file, which names the contract it is
+built for.
 
 Verification establishes that the module is what that compiler release produces
 from that source. It does not establish that the compiler is correct, which is
@@ -252,24 +260,31 @@ Adopting this proposal changes the following. None of the changes is made yet.
    [07-chain-abi.md](07-chain-abi.md) section 3.4.
 2. **The compiler has no options that change its output**, a rule to add to
    [03-architecture.md](03-architecture.md) section 2.
-3. **Compiler releases are kept and stay runnable**, an addition to
+3. **The contract's principal is a build input, and provenance records it.**
+   [03-architecture.md](03-architecture.md) section 2 names the deploying
+   principal only, and does not list it in the provenance section.
+4. **Compiler releases are kept and stay runnable**, an addition to
    [05-roadmap.md](05-roadmap.md) Phase 4.
 
 ## 11. Open questions
 
-The first two are on chain, so they are to be settled before launch.
+The first three are on chain, so they are to be settled before launch.
 
 1. **The source hash function.** `sha512/256` is what the ABI uses everywhere
    else. `sha256` would let the on-chain hash double as an IPFS content
    identifier. This proposal keeps one hash function.
-2. **Per-definition hashes** ([spec/03-primitives.md](spec/03-primitives.md)
+2. **`contract-hash?`** ([spec/03-primitives.md](spec/03-primitives.md) 3.5).
+   It hashes the whole module, which now differs for every contract. For a
+   contract to recognise a known template on chain, it has to hash the module
+   without the provenance section, or another primitive has to.
+3. **Per-definition hashes** ([spec/03-primitives.md](spec/03-primitives.md)
    open question 3). If only tools need them, they are computed from verified
    source at any time. If a contract must read another contract's on chain, they
    go in the provenance section, and contracts deployed before that never have
    them.
-3. **Sections of legacy callees.** A vNEXT contract that calls a legacy one
+4. **Sections of legacy callees.** A vNEXT contract that calls a legacy one
    builds against sections the chain derives from the legacy contract
    ([03-architecture.md](03-architecture.md) section 7). A verifier must be able
    to read the same sections from a node. This is the chain team's to confirm.
-4. **Wallet policy.** Whether a wallet only warns on an unverified contract or
+5. **Wallet policy.** Whether a wallet only warns on an unverified contract or
    requires an explicit override.
