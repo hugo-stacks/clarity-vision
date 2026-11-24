@@ -138,7 +138,8 @@ It does three things:
   it (section 4). If the contract is verified it stores the source, and if not
   it answers with the reason and stores nothing.
 - **Read.** For a contract, whether it is verified, and its source.
-- **Dump.** A public archive of everything it holds, refreshed daily.
+- **List.** The records it holds, in the order it stored them, starting after
+  any given point. Read from the start, the list is a full copy of the registry.
 
 The rules that keep it simple:
 
@@ -156,10 +157,34 @@ against the hash on chain, and anyone can rerun its verdict with
 `clarity-verify`. Wallets and explorers take its answer as it is for
 convenience, not because they have to.
 
-**Stacks Labs runs the registry, and at launch it is the only one.** The risk is
-a lost source. The registry is backed up, the daily dump lets anyone keep a
-copy, and whoever has a source can publish it again. Nothing on chain refers to
-the registry, so a second one can be added later without changing anything here.
+**Stacks Labs runs a registry, and launch needs no other.** The risk in a single
+registry is a lost source. It is backed up, the list lets anyone keep a full
+copy, and whoever has a source can publish it again.
+
+**Anyone can run another one.** No permission is needed, because a registry is
+not trusted: what it serves is checked against the chain. Nothing on chain
+refers to a registry either. A new operator runs the same service and gives it
+the address of a registry to copy. It reads that registry's list from the start,
+then asks for new records about once a minute. It verifies each source before
+storing it, so no registry has to trust another.
+
+- **The registry being copied does nothing**, and need not know.
+- **Two registries can copy each other.** Nothing can conflict, because a
+  contract's module names exactly one source.
+- **An operator chooses which registries to copy.** Each record costs a
+  compilation, so this is a setting, not open to anyone.
+- **Optionally, a registry asks the ones it copies** about a contract it does
+  not have yet, before answering that it is unverified.
+
+Three things keep this possible from launch:
+
+- The registry is open source and documented for self-hosting.
+- Its API is documented, so registries are interchangeable.
+- Clarinet, the Stacks API, and explorers take the registry's address as a
+  setting.
+
+Only the list has to exist at launch. The copying side can follow, since the
+first registry has nothing to copy.
 
 ## 6. Compiler releases
 
@@ -187,10 +212,10 @@ handling, and how compiler releases are run are the implementer's to decide.
 
 - **`clarity-verify`** is a Rust library with a thin command-line tool. The
   registry and Clarinet both use the library.
-- **The registry** is one standalone Rust service: axum for HTTP, SQLite for the
-  records and the sources, and a node's RPC to read modules. A source is
-  verified while its publisher waits, so there is no queue and no background
-  work besides the dump.
+- **The registry** is one standalone, open-source Rust service: axum for HTTP,
+  SQLite for the records and the sources, and a node's RPC to read modules. A
+  source is verified while its publisher waits, so there is no queue. The only
+  background work is copying another registry, when one is set.
 - **Clarinet** publishes the source when a deploy confirms, and has a
   `clarinet verify` command.
 - **The Stacks API** asks the registry and adds a contract's verified status and
@@ -203,7 +228,7 @@ API.
 ## 9. Not in the first version
 
 - Following the chain, to verify a new deploy of a source already held.
-- A second registry.
+- A way for tools to discover registries.
 - Keeping failed verifications, to warn about a contract with false provenance.
 - Cost bounds and proofs, published next to the source.
 - Annotations signed by the deployer: project name, license, repository, audits.
